@@ -1,0 +1,8 @@
+system_id,method,subset_size,single_active_size,region_size,region_candidates,attack_success_rate,avg_queries,note
+14,single_active_region_search,256,2,2,3,90.625,84.5625,local two-state search inside fixed support
+14,single_active_region_search,256,8,8,1,93.75,163.34375,full-support search without rollback
+14,single_active_region_search,256,13,13,1,91.796875,203.1875,full-state search without rollback
+118,single_active_region_search,256,16,117,1,83.984375,75.5078125,strict one-shot fixed support
+118,single_active_region_search,256,32,117,1,87.890625,62.1640625,strict one-shot fixed support
+118,single_active_region_search,256,64,117,1,88.28125,56.6171875,strict one-shot fixed support
+118,single_active_region_search,256,117,117,1,89.453125,57.65625,full-state one-shot baseline

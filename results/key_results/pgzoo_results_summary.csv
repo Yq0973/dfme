@@ -1,0 +1,4 @@
+system_id,variant,subset_size,attack_success_rate,avg_queries,median_queries,p90_queries,p95_queries,max_queries,result_dir
+14,physics_subspace_zoo_v1,1717,98.1945276260376,13.532323820617355,11,31,39,75,topo_latent_blackbox/results/key_results/case14/pgzoo_main
+118,physics_subspace_zoo_v1_support64,1795,89.08078074455261,59.211699164345404,27,243,243,243,topo_latent_blackbox/results/key_results/case118/pgzoo_support64
+118,physics_subspace_zoo_v1_full117,1795,89.47075128555298,57.540668523676884,27,243,243,243,topo_latent_blackbox/results/key_results/case118/pgzoo_full117

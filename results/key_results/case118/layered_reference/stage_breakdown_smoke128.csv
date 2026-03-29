@@ -1,0 +1,4 @@
+system_id,subset_size,stage_index,active_set_size,status,samples,ratio_percent,avg_queries
+118,128,0,16,success,79,61.71875,5.78
+118,128,1,117,success,37,28.90625,78.51
+118,128,-1,117,failed,12,9.375,310.33

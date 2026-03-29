@@ -1,0 +1,9 @@
+system_id,method,subset_size,attack_success_rate,avg_queries,note
+14,scale_adaptive_mainline_v1,1717,96.97146415710449,117.5824111822947,old compact baseline
+14,layered_active_mainline_v1,1717,99.4175910949707,54.67967384973792,offline layered reference
+14,one_shot_mainline_v1,1717,100.0,41.2853814793244,stochastic single-region reference
+14,deterministic_mainline_v1,1717,97.37914800643921,21.842166569598135,current official deterministic compass mainline
+118,scale_adaptive_mainline_v1,1795,88.24512362480164,58.41615598885794,old compact baseline
+118,layered_active_mainline_v1,1795,87.9665732383728,58.24233983286908,offline layered reference
+118,one_shot_mainline_v1,1795,88.24512362480164,59.9949860724234,fixed-support deterministic basis reference
+118,deterministic_mainline_v1,1795,88.24512362480164,59.9949860724234,current official deterministic mainline

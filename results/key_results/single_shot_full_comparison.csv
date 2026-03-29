@@ -1,0 +1,10 @@
+system_id,method,subset_size,attack_success_rate,avg_queries,note
+14,layered_active_mainline_v1,1717,99.4175910949707,54.67967384973792,offline layered reference with same-sample expansion
+14,deterministic_mainline_v1_compass,1717,97.37914800643921,21.842166569598135,current deterministic compass mainline
+14,one_shot_mainline_v1_region2_c1_p1,1717,100.0,41.2853814793244,stochastic single-local-region reference
+14,region_search_single_layer_region2_c2,1717,97.90331721305847,53.78509027373325,two-candidate local-region variant
+14,region_search_single_layer_region2_c3,1717,96.447291135788,62.610367035527086,three-candidate local-region variant
+14,region_search_single_layer_region3_c3,1717,97.02970385551453,77.94117647058823,older region3 mainline reference
+14,single_active_region_search_k2,1717,88.87594938278198,92.81129877693651,fixed-support one-shot ablation
+118,layered_active_mainline_v1,1795,87.9665732383728,58.24233983286908,offline layered reference with same-sample expansion
+118,one_shot_mainline_v1_k64,1795,88.24512362480164,59.9949860724234,current deterministic fixed-support basis mainline
