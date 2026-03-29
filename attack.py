@@ -970,6 +970,9 @@ class TopologyLatentQueryAttack:
         delta_z = delta_z.to(dtype=torch.float32)
         if delta_z.ndim == 1:
             delta_z = delta_z.unsqueeze(0)
+        # Temporarily disable FDIA preserve penalty from optimization objective.
+        return torch.zeros(delta_z.shape[0], device=delta_z.device, dtype=delta_z.dtype)
+
         total_weight = float(self.config.fdia_preserve_weight)
         if total_weight <= 0.0 or c_base is None:
             return torch.zeros(delta_z.shape[0], device=delta_z.device, dtype=delta_z.dtype)
@@ -4931,6 +4934,15 @@ class TopologyLatentQueryAttack:
         generator: torch.Generator | None,
         max_rounds: int,
     ) -> bool:
+        if self._uses_state_budget_geometry():
+            return self._search_state_subspace_pgzoo_budget_aligned_rounds(
+                x0=x0,
+                label=label,
+                c_base=c_base,
+                region_state=region_state,
+                generator=generator,
+                max_rounds=max_rounds,
+            )
         if not (
             bool(self.config.pgzoo_structured_covariance)
             or bool(self.config.pgzoo_physical_preconditioner)
@@ -5240,6 +5252,15 @@ class TopologyLatentQueryAttack:
         generator: torch.Generator | None,
         max_rounds: int,
     ) -> bool:
+        if self._uses_state_budget_geometry():
+            return self._search_state_subspace_pgzoo_budget_aligned_rounds(
+                x0=x0,
+                label=label,
+                c_base=c_base,
+                region_state=region_state,
+                generator=generator,
+                max_rounds=max_rounds,
+            )
         rounds_to_run = max(0, int(max_rounds))
         if rounds_to_run <= 0:
             return False
@@ -5410,6 +5431,273 @@ class TopologyLatentQueryAttack:
                     current_success_priority = float(
                         self._success_priority_value(
                             x_ref=x0,
+                            delta_z=region_state.success_delta_z,
+                            c_base=c_base,
+                            delta_c=region_state.success_delta_c,
+                            region=region_state.region,
+                        )[0].item()
+                    )
+                if (
+                    region_state.success_adv is None
+                    or success_candidate_priority + 1e-8 < current_success_priority
+                ):
+                    region_state.success_adv = candidate_adv[success_idx : success_idx + 1].clone()
+                    region_state.success_delta_c = candidate_c[success_idx : success_idx + 1].clone()
+                    region_state.success_delta_z = candidate_delta_z[
+                        success_idx : success_idx + 1
+                    ].clone()
+                    region_state.success_objective = float(candidate_objective[success_idx].item())
+                    region_state.success_score = float(candidate_score[success_idx].item())
+                    region_state.success_pred = int(candidate_preds[success_idx].item())
+                    region_state.best_adv = candidate_adv[success_idx : success_idx + 1].clone()
+                    region_state.best_delta_c = candidate_c[success_idx : success_idx + 1].clone()
+                    region_state.best_delta_z = candidate_delta_z[
+                        success_idx : success_idx + 1
+                    ].clone()
+                    region_state.best_objective = float(candidate_objective[success_idx].item())
+                    region_state.best_score = float(candidate_score[success_idx].item())
+                    region_state.best_pred = int(candidate_preds[success_idx].item())
+                    improved = True
+                if self._should_early_stop_on_success():
+                    return True
+
+            best_idx = int(torch.argmin(candidate_objective).item())
+            if float(candidate_objective[best_idx].item()) + 1e-8 < region_state.best_objective:
+                region_state.best_objective = float(candidate_objective[best_idx].item())
+                region_state.best_score = float(candidate_score[best_idx].item())
+                region_state.best_pred = int(candidate_preds[best_idx].item())
+                region_state.best_delta_c = candidate_c[best_idx : best_idx + 1].clone()
+                region_state.best_delta_z = candidate_delta_z[best_idx : best_idx + 1].clone()
+                region_state.best_adv = candidate_adv[best_idx : best_idx + 1].clone()
+                improved = True
+
+            if improved:
+                region_state.no_improve = 0
+                region_state.step_shrinks = 0
+            else:
+                region_state.no_improve += 1
+            self._update_score_stagnation(region_state, previous_best_score)
+
+            if region_state.no_improve >= self.config.patience:
+                new_step = max(
+                    region_state.step * self.config.step_decay,
+                    region_state.min_step,
+                )
+                if (
+                    abs(new_step - region_state.step) <= 1e-12
+                    and region_state.step <= region_state.min_step + 1e-12
+                ):
+                    region_state.step_shrinks += 1
+                else:
+                    region_state.step = new_step
+                    region_state.step_shrinks += 1
+                region_state.no_improve = 0
+                if (
+                    region_state.step <= region_state.min_step + 1e-12
+                    and region_state.step_shrinks >= self.config.max_step_shrinks
+                ):
+                    break
+            if self._should_search_early_stop(region_state, c_base):
+                break
+
+        return False
+
+    def _search_state_subspace_pgzoo_budget_aligned_rounds(
+        self,
+        x0: torch.Tensor,
+        label: int,
+        c_base: torch.Tensor,
+        region_state: _RegionSearchState,
+        generator: torch.Generator | None,
+        max_rounds: int,
+    ) -> bool:
+        rounds_to_run = max(0, int(max_rounds))
+        if rounds_to_run <= 0:
+            return False
+
+        momentum_beta = None
+        beta_momentum = min(max(float(self.config.pgzoo_momentum), 0.0), 0.99)
+        alpha_ratio = max(float(self.config.pgzoo_alpha_ratio), 0.1)
+        query_budget_units = rounds_to_run * max(
+            1,
+            int(self._resolve_search_population(region_state)),
+        )
+        budget_used = 0
+
+        for _ in range(rounds_to_run):
+            active_population = self._resolve_search_population(region_state)
+            basis = self._state_basis_matrix(
+                region_state=region_state,
+                c_base=c_base,
+                max_vectors=self._state_basis_max_vectors(max(2, active_population)),
+            )
+            q_basis = self._orthonormalize_rows(basis)
+            coeff_dim = int(q_basis.shape[0])
+            if coeff_dim <= 0:
+                region_state.no_improve += 1
+                continue
+
+            # Build measurement-space map G: alpha -> delta_z via delta_z = alpha @ G.
+            g_map = self._project_region(
+                region=region_state.region,
+                delta_region=q_basis,
+                use_search_shaping=True,
+            ).to(dtype=torch.float32)
+            u_svd, s_svd, _ = torch.linalg.svd(g_map, full_matrices=False)
+            keep = s_svd > 1e-8
+            if not bool(keep.any().item()):
+                region_state.no_improve += 1
+                continue
+            u_sub = u_svd[:, keep]
+            s_sub = s_svd[keep]
+            beta_dim = int(s_sub.numel())
+
+            probe_pairs = max(1, min(int(self.config.pgzoo_probe_pairs), beta_dim))
+            line_scales_count = max(1, min(int(self.config.pgzoo_line_candidates), 3))
+            candidate_count = line_scales_count + (1 if line_scales_count >= 2 else 0)
+            round_query_cost = 2 * probe_pairs + candidate_count
+            if budget_used > 0 and budget_used + round_query_cost > query_budget_units:
+                break
+            budget_used += round_query_cost
+            region_state.rounds_used += 1
+            previous_best_score = float(region_state.best_score)
+
+            # Map current best delta from region-space to beta-space.
+            alpha_best = region_state.best_delta_c @ q_basis.T
+            beta_best = (alpha_best @ u_sub) * s_sub.reshape(1, -1)
+
+            white_noise = torch.randn(
+                probe_pairs,
+                beta_dim,
+                dtype=torch.float32,
+                generator=generator,
+            )
+            beta_dirs = self._normalize_rows(white_noise)
+            sigma = max(region_state.step * alpha_ratio, region_state.min_step)
+
+            probe_beta = torch.cat(
+                [
+                    beta_best + sigma * beta_dirs,
+                    beta_best - sigma * beta_dirs,
+                ],
+                dim=0,
+            )
+            probe_beta = _project_l2(probe_beta, region_state.radius)
+
+            # beta -> alpha -> delta_c(region)
+            alpha_probe = (probe_beta / s_sub.reshape(1, -1)) @ u_sub.T
+            probe_c = alpha_probe @ q_basis
+            probe_c, probe_delta_z = self._project_state_budget_ball(
+                x_ref=x0,
+                region=region_state.region,
+                delta_c=probe_c,
+                use_search_shaping=True,
+                cap_override=region_state.radius,
+            )
+
+            probe_adv = x0 + probe_delta_z
+            probe_query = self.oracle.query(probe_adv)
+            probe_score = self._score(probe_query)
+            probe_objective = self._selection_objective(
+                probe_score,
+                x0,
+                probe_delta_z,
+                c_base=c_base,
+                delta_c=probe_c,
+                region=region_state.region,
+            )
+            should_stop, probe_improved = self._consume_search_batch(
+                x0=x0,
+                label=label,
+                c_base=c_base,
+                region_state=region_state,
+                batch_c=probe_c,
+                batch_delta_z=probe_delta_z,
+                batch_adv=probe_adv,
+                batch_score=probe_score,
+                batch_objective=probe_objective,
+                batch_preds=probe_query.pred,
+            )
+            if should_stop:
+                return True
+
+            obj_plus = probe_objective[:probe_pairs]
+            obj_minus = probe_objective[probe_pairs:]
+            grad_beta = (
+                ((obj_plus - obj_minus) / max(2.0 * sigma, 1e-8)).reshape(-1, 1) * beta_dirs
+            ).mean(dim=0, keepdim=True)
+            if momentum_beta is None or momentum_beta.shape[1] != grad_beta.shape[1]:
+                momentum_beta = grad_beta.clone()
+            else:
+                momentum_beta = beta_momentum * momentum_beta + (1.0 - beta_momentum) * grad_beta
+
+            if float(torch.linalg.norm(momentum_beta).item()) <= 1e-12:
+                region_state.no_improve += 1
+                continue
+
+            update_dir_beta = self._normalize_rows(momentum_beta)
+            line_scales = [max(region_state.step, region_state.min_step)]
+            if line_scales_count >= 2:
+                line_scales.append(
+                    max(region_state.step * self.config.step_decay, region_state.min_step)
+                )
+            if line_scales_count >= 3:
+                line_scales.append(
+                    max(0.5 * region_state.step * self.config.step_decay, region_state.min_step)
+                )
+
+            beta_candidates = [beta_best - scale * update_dir_beta for scale in line_scales]
+            if len(line_scales) >= 2:
+                beta_candidates.append(beta_best + 0.5 * line_scales[-1] * update_dir_beta)
+            candidate_beta = torch.cat(beta_candidates, dim=0)
+            candidate_beta = _project_l2(candidate_beta, region_state.radius)
+
+            alpha_candidate = (candidate_beta / s_sub.reshape(1, -1)) @ u_sub.T
+            candidate_c = alpha_candidate @ q_basis
+            candidate_c, candidate_delta_z = self._project_state_budget_ball(
+                x_ref=x0,
+                region=region_state.region,
+                delta_c=candidate_c,
+                use_search_shaping=True,
+                cap_override=region_state.radius,
+            )
+            candidate_adv = x0 + candidate_delta_z
+            candidate_query = self.oracle.query(candidate_adv)
+            candidate_score = self._score(candidate_query)
+            candidate_objective = self._selection_objective(
+                candidate_score,
+                x0,
+                candidate_delta_z,
+                c_base=c_base,
+                delta_c=candidate_c,
+                region=region_state.region,
+            )
+            candidate_preds = candidate_query.pred
+            success_mask = candidate_preds != int(label)
+
+            improved = bool(probe_improved)
+            if bool(success_mask.any().item()):
+                success_priority = self._success_candidate_value(
+                    x_ref=x0,
+                    objective=candidate_objective,
+                    delta_z=candidate_delta_z,
+                    c_base=c_base,
+                    delta_c=candidate_c,
+                    region=region_state.region,
+                )
+                success_idx = int(
+                    torch.argmin(success_priority.masked_fill(~success_mask, float("inf"))).item()
+                )
+                success_candidate_priority = float(success_priority[success_idx].item())
+                current_success_priority = float("inf")
+                if region_state.success_delta_z is not None:
+                    current_success_priority = float(
+                        self._success_candidate_value(
+                            x_ref=x0,
+                            objective=torch.tensor(
+                                [float(region_state.success_objective)],
+                                dtype=torch.float32,
+                            ),
                             delta_z=region_state.success_delta_z,
                             c_base=c_base,
                             delta_c=region_state.success_delta_c,

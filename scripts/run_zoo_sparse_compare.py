@@ -131,7 +131,7 @@ def main() -> None:
     parser.add_argument("--max_samples", type=int, default=256)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--topology_mode", type=str, default="auto")
-    parser.add_argument("--noise_model", type=str, default="known")
+    parser.add_argument("--noise_model", type=str, default="unknown")
     parser.add_argument("--save_level", type=str, default="summary_only")
     parser.add_argument("--oracle_arch", type=str, default="resmlp")
     parser.add_argument("--exp_tag", type=str, default="main_compare_zoo_sparse_v1")

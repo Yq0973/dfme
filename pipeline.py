@@ -401,7 +401,7 @@ def run_topology_latent_blackbox_attack(
     device: Optional[torch.device] = None,
     attack_config: Optional[TopologyLatentAttackConfig] = None,
     topology_mode: str = "auto",
-    noise_model: str = "known",
+    noise_model: str = "unknown",
     save_level: str = "full",
     budget_boundary_push_ratio: float = 0.0,
     budget_boundary_search_steps: int = 0,

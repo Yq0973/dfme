@@ -37,7 +37,7 @@ def main() -> None:
     parser.add_argument(
         "--noise_model",
         type=str,
-        default="known",
+        default="unknown",
         choices=["known", "unknown", "isotropic"],
     )
     parser.add_argument(

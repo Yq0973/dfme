@@ -1,0 +1,5 @@
+system_id,method,subset_size,attack_success_rate,avg_queries,avg_probe_queries,avg_search_queries,delta_over_clean_l2_ratio_mean,region_measurement_support_count_mean,region_measurement_support_ratio_mean,region_sparse_efficiency_mean,state_support_retention_ratio_mean,state_offsupport_energy_ratio_mean
+118,zoo_baseline,256,0.0,709.0,0.0,709.0,0.20312500462407956,490.0,1.0,0.0,0.9239792043869077,0.2992317651505152
+118,mainline,256,90.625,58.09375,2.0,56.09375,0.1972687105717026,490.0,1.0,0.0,0.23246248123467705,0.15402224360267575
+118,sparse_only,256,91.796875,50.6875,2.0,48.6875,0.19777898915994277,490.0,1.0,0.0,0.22629845187772557,0.15134698010268588
+118,sparse_combined,256,91.015625,55.6875,2.0,53.6875,0.19912219437874312,490.0,1.0,0.0,0.23486232766354231,0.157675303567

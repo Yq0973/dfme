@@ -202,21 +202,19 @@ class StateCouplingTopology:
         cls,
         data_dir: str,
         topology_mode: str = "auto",
-        noise_model: str = "known",
+        noise_model: str = "unknown",
     ) -> "StateCouplingTopology":
         base = Path(data_dir)
         H = _read_csv(base / "jacobian_H_adjust.csv")
-        noise_model = str(noise_model).lower()
-        if noise_model == "isotropic":
-            noise_model = "unknown"
-        if noise_model not in {"known", "unknown"}:
+        requested_noise_model = str(noise_model).lower()
+        if requested_noise_model not in {"known", "unknown", "isotropic"}:
             raise ValueError(
                 "Unsupported noise_model. Expected one of: known, unknown, isotropic."
             )
-        if noise_model == "known":
-            noise_std = _read_csv(base / "noise_std.csv").reshape(-1).clamp(min=1e-8)
-        else:
-            noise_std = torch.ones(H.shape[0], dtype=torch.float32)
+        # Do not use measurement-noise covariance as prior knowledge in attack guidance.
+        # Keep identity weighting so physical priors only rely on topology and Jacobian H.
+        noise_model = "unknown"
+        noise_std = torch.ones(H.shape[0], dtype=torch.float32)
         rinv = 1.0 / (noise_std.pow(2))
         weighted_H = H / noise_std.unsqueeze(1)
         weighted_normal = H.T @ (H * rinv.unsqueeze(1))

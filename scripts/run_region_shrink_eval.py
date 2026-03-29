@@ -31,7 +31,7 @@ def main() -> None:
     parser.add_argument("--anchor_size", type=int, default=0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--topology_mode", type=str, default="auto")
-    parser.add_argument("--noise_model", type=str, default="known")
+    parser.add_argument("--noise_model", type=str, default="unknown")
     parser.add_argument("--save_level", type=str, default="summary_only")
     parser.add_argument("--exp_tag", type=str, default="")
     args = parser.parse_args()

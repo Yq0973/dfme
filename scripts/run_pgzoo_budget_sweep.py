@@ -175,7 +175,7 @@ def _run_single(
         device=device,
         attack_config=attack_cfg,
         topology_mode="auto",
-        noise_model="known",
+        noise_model="unknown",
         save_level=str(save_level),
         budget_boundary_push_ratio=float(variant["push_ratio"]),
         budget_boundary_search_steps=int(variant["search_steps"]),
